@@ -1,17 +1,23 @@
-version: '3.8'
+version: "3.8"
 
 services:
   db:
     image: mariadb:10.11
     container_name: parking_mariadb
     restart: always
+
     environment:
       MARIADB_DATABASE: parking_db
       MARIADB_USER: user
       MARIADB_PASSWORD: password
       MARIADB_ROOT_PASSWORD: rootpassword
+
+    ports:
+      - "3306:3306"
+
     volumes:
       - mariadb:/var/lib/mysql
+
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       timeout: 20s
@@ -21,14 +27,19 @@ services:
     build: ./backend
     container_name: parking_backend
     restart: always
+
     command: python manage.py runserver 0.0.0.0:8000
+
     ports:
       - "8000:8000"
+
     volumes:
       - ./backend:/app
+
     depends_on:
       db:
         condition: service_healthy
+
     environment:
       DB_HOST: db
       DB_NAME: parking_db
@@ -39,15 +50,19 @@ services:
     build: ./frontend
     container_name: parking_frontend
     restart: always
+
     ports:
       - "3000:3000"
+
     volumes:
       - ./frontend:/app
       - /app/node_modules
+
     depends_on:
       - backend
+
     environment:
       CHOKIDAR_USEPOLLING: "true"
 
 volumes:
-  mariadb: {}
+  mariadb:
