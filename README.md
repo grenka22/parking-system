@@ -16,4 +16,4 @@ CI/CD - GitHub Actions
 
 ## Как запустить через Docker (инфо для команды)
 ```bash
-docker-compose up --build
+docker compose up -d
