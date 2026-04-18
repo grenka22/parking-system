@@ -73,7 +73,7 @@ class ReservationCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Номер телефона обязателен")
         clean_phone = value.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
 
-        if not clean_phone.starstwith('+'):
+        if not clean_phone.startswith('+'):
             raise serializers.ValidationError("Номер телефона должен начинаться с +")
         digits = ''.join(filter(str.isdigit, clean_phone))
 
