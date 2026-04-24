@@ -1,3 +1,11 @@
+"""Главные URL-маршруты проекта.
+
+Подключает:
+- Админ-панель Django
+- API эндпоинты через DefaultRouter (зоны, слоты, бронирования)
+- Кастомные эндпоинты аутентификации (регистрация, вход, выход)
+- JWT-эндпоинты из библиотеки djangorestframework-simplejwt
+"""
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter

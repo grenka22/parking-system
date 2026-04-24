@@ -1,6 +1,11 @@
-import email
-from email.policy import default
+"""Вьюхи API для приложения parking.
 
+Содержит ViewSet'ы для:
+- ZoneViewSet — управление зонами парковки
+- ParkingSlotViewSet — управление парковочными местами
+- ReservationViewSet — управление бронированиями
+- TheftReportViewSet — управление заявлениями об угоне
+"""
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -15,13 +20,35 @@ from .serializers import (
     ReservationSerializer, ReservationCreateSerializer,
     TheftReportSerializer
 )
+
+
 class ZoneViewSet(viewsets.ModelViewSet):
+    """ViewSet для управления зонами парковки.
+
+    Эндпоинты:
+    - GET /api/zones/ — список зон
+    - POST /api/zones/ — создание зоны
+    - GET /api/zones/{id}/ — детали зоны
+    - PUT/PATCH /api/zones/{id}/ — обновление зоны
+    - DELETE /api/zones/{id}/ — удаление зоны
+    - GET /api/zones/availability/ — загруженность всех зон
+    - GET /api/zones/recommendations/ — рекомендации по загруженности
+    """
+
     queryset = Zone.objects.all()
     serializer_class = ZoneSerializer
     permission_classes = [AllowAny]
 
     @action(detail=False, methods=['get'])
     def availability(self, request):
+        """Возвращает загруженность всех зон в процентах.
+
+        Returns:
+            Response: Список зон с полями:
+                - id, name, zone_type, capacity
+                - load_percentage: текущая загруженность
+                - availability_probability: вероятность свободных мест
+        """
         zones = Zone.objects.all()
         data = []
 
@@ -32,15 +59,19 @@ class ZoneViewSet(viewsets.ModelViewSet):
                 'name': zone.name,
                 'zone_type': zone.zone_type,
                 'capacity': zone.capacity,
-                'load_percentage': round(load,2),
-                'availability_probability': round(max(0,100 - load), 2)
-
+                'load_percentage': round(load, 2),
+                'availability_probability': round(max(0, 100 - load), 2)
             })
 
         return Response(data)
 
     @action(detail=False, methods=['get'])
     def recommendations(self, request):
+        """Возвращает рекомендации зон на основе загруженности.
+
+        Returns:
+            Response: Список зон, отсортированный по убыванию recommendation_score
+        """
         zones = Zone.objects.all()
         recommendations = []
 
@@ -60,7 +91,14 @@ class ZoneViewSet(viewsets.ModelViewSet):
         return Response(recommendations)
 
     def _get_recommendation_message(self, load):
+        """Возвращает текстовую рекомендацию на основе загруженности.
 
+        Args:
+            load (float): Процент загруженности
+
+        Returns:
+            str: Текст рекомендации
+        """
         if load < 30:
             return "Много свободных мест"
         elif load < 60:
@@ -70,13 +108,33 @@ class ZoneViewSet(viewsets.ModelViewSet):
         else:
             return "Очень высокая загруженность"
 
+
 class ParkingSlotViewSet(viewsets.ModelViewSet):
+    """ViewSet для управления парковочными местами.
+
+    Эндпоинты:
+    - GET /api/slots/ — список мест
+    - POST /api/slots/ — создание места
+    - GET /api/slots/{id}/ — детали места
+    - PUT/PATCH /api/slots/{id}/ — обновление места
+    - DELETE /api/slots/{id}/ — удаление места
+    - GET /api/slots/available/ — список свободных мест
+    - GET /api/slots/least_loaded/ — рекомендация по наименее загруженной зоне
+    - POST /api/slots/{id}/check_availability/ — проверка доступности места на время
+    - GET /api/slots/map/ — карта мест с координатами
+    """
+
     queryset = ParkingSlot.objects.all()
     serializer_class = ParkingSlotSerializer
     permission_classes = [AllowAny]
 
     @action(detail=False, methods=['get'])
     def available(self, request):
+        """Возвращает список мест, свободных в данный момент.
+
+        Returns:
+            Response: Список доступных мест
+        """
         now = timezone.now()
         slots = ParkingSlot.objects.filter(
             is_active=True,
@@ -92,6 +150,11 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def least_loaded(self, request):
+        """Рекомендует место на основе наименее загруженной зоны (greedy algorithm).
+
+        Returns:
+            Response: Рекомендованное место или ошибка
+        """
         best_zone = ParkingSlot.get_least_loaded_zone()
 
         if not best_zone:
@@ -133,6 +196,14 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def check_availability(self, request, pk=None):
+        """Проверяет, свободно ли место на указанный интервал времени.
+
+        Args:
+            request: POST с полями start_time и end_time
+
+        Returns:
+            Response: {is_available: true/false}
+        """
         slot = self.get_object()
         start_time = request.data.get('start_time')
         end_time = request.data.get('end_time')
@@ -154,13 +225,18 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def map(self, request):
+        """Возвращает данные для интерактивной карты парковки.
+
+        Returns:
+            Response: Список мест с координатами и статусами
+        """
         slots = ParkingSlot.objects.filter(is_active=True).select_related('zone')
         now = timezone.now()
 
         data = []
         for slot in slots:
             is_booked = slot.reservations.filter(
-                status__in = ['active', 'pending'],
+                status__in=['active', 'pending'],
                 start_time__lte=now,
                 end_time__gte=now
             ).exists()
@@ -180,17 +256,41 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
 
         return Response(data)
 
+
 class ReservationViewSet(viewsets.ModelViewSet):
+    """ViewSet для управления бронированиями.
+
+    Эндпоинты:
+    - GET /api/reservations/ — список бронирований
+    - POST /api/reservations/ — создание бронирования (через ReservationCreateSerializer)
+    - GET /api/reservations/{id}/ — детали бронирования
+    - PUT/PATCH /api/reservations/{id}/ — обновление (только для админов)
+    - DELETE /api/reservations/{id}/ — удаление (только для админов)
+    - GET /api/reservations/statistics/ — статистика по бронированиям
+    - GET /api/reservations/active/ — список активных бронирований
+    - GET /api/reservations/my_reservations/ — бронирования по email или телефону
+    - POST /api/reservations/{id}/cancel/ — отмена бронирования
+    - POST /api/reservations/{id}/confirm/ — подтверждение бронирования
+    - GET /api/reservations/check_conflicts/ — проверка конфликтов бронирования
+    - POST /api/reservations/quick_book/ — быстрое бронирование (atomic)
+    """
+
     queryset = Reservation.objects.all()
     permission_classes = [AllowAny]
 
     def get_serializer_class(self):
+        """Возвращает соответствующий сериализатор в зависимости от действия."""
         if self.action == 'create':
             return ReservationCreateSerializer
         return ReservationSerializer
 
     @action(detail=False, methods=['get'])
-    def statistics(self,request):
+    def statistics(self, request):
+        """Возвращает статистику по бронированиям.
+
+        Returns:
+            Response: Статистика (total, active, pending, today, this_week и т.д.)
+        """
         now = timezone.now()
         stats = {
             'total': Reservation.objects.count(),
@@ -210,13 +310,20 @@ class ReservationViewSet(viewsets.ModelViewSet):
         return Response(stats)
 
     @action(detail=False, methods=['get'])
-    def active(self,request):
+    def active(self, request):
+        """Возвращает список активных бронирований."""
         active_reservations = Reservation.objects.filter(status='active')
         serializer = self.get_serializer(active_reservations, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
-    def my_reservations(self,request):
+    def my_reservations(self, request):
+        """Возвращает бронирования пользователя по email или телефону.
+
+        Query params:
+            email: Email пользователя
+            phone: Телефон пользователя
+        """
         email = request.query_params.get('email')
         phone = request.query_params.get('phone')
 
@@ -241,12 +348,13 @@ class ReservationViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
-    def cancel(self,request,pk = None):
+    def cancel(self, request, pk=None):
+        """Отменяет бронирование (не позднее чем за 30 минут до начала)."""
         reservation = self.get_object()
 
-        if not reservation.can_cancel:
+        if not reservation.can_cancel():
             return Response(
-                {'error' : 'Отмена возможно не позднее чем за 30 минут.'},
+                {'error': 'Отмена возможна не позднее чем за 30 минут до начала'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -255,13 +363,14 @@ class ReservationViewSet(viewsets.ModelViewSet):
         reservation.save()
 
         return Response({
-            'status' : 'canceled',
+            'status': 'cancelled',
             'booking_code': reservation.booking_code,
-            'message' : 'Бронирование отменено'
+            'message': 'Бронирование отменено'
         })
 
     @action(detail=True, methods=['post'])
-    def confrim(self,request, pk=None):
+    def confirm(self, request, pk=None):
+        """Подтверждает бронирование (меняет статус с pending на active)."""
         reservation = self.get_object()
         reservation.status = 'active'
         reservation.confirmed_at = timezone.now()
@@ -274,6 +383,13 @@ class ReservationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def check_conflicts(self, request):
+        """Проверяет, есть ли конфликты бронирования на указанный интервал.
+
+        Query params:
+            slot_id: ID места
+            start_time: Начало интервала
+            end_time: Конец интервала
+        """
         slot_id = request.query_params.get('slot_id')
         start_time = request.query_params.get('start_time')
         end_time = request.query_params.get('end_time')
@@ -297,8 +413,11 @@ class ReservationViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=False, methods=['post'])
-    def quick_book(self,request):
+    def quick_book(self, request):
+        """Быстрое бронирование с атомарной транзакцией и блокировкой строки.
 
+        Использует select_for_update() для предотвращения double booking.
+        """
         from django.db import DatabaseError
 
         slot_id = request.data.get('slot_id')
@@ -311,23 +430,29 @@ class ReservationViewSet(viewsets.ModelViewSet):
 
         if not all([slot_id, user_name, user_phone, start_time, end_time]):
             return Response(
-                {'error' : 'Укажите обязатаельные поля'},
+                {'error': 'Укажите обязательные поля'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
             with transaction.atomic():
-                slot = ParkingSlot.objects.select_fot_update().get(id=slot_id)
+                slot = ParkingSlot.objects.select_for_update().get(id=slot_id) 
 
                 if not slot.is_active:
-                    return Response({'error' : 'Место временно недоступно'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(
+                        {'error': 'Место временно недоступно'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
                 if not slot.is_available_for_booking(start_time, end_time):
-                    return Response({'error' : 'Место забронировано на это время'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(
+                        {'error': 'Место уже забронировано на это время'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
                 reservation = Reservation.objects.create(
-                    slot = slot,
-                    user_name = user_name,
+                    slot=slot,
+                    user_name=user_name,
                     user_phone=user_phone,
                     user_email=user_email,
                     is_guest=is_guest,
@@ -356,13 +481,34 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
 class TheftReportViewSet(viewsets.ModelViewSet):
+    """ViewSet для управления заявлениями об угоне.
+
+    Эндпоинты:
+    - GET /api/theft-reports/ — список заявлений
+    - POST /api/theft-reports/ — создание заявления
+    - GET /api/theft-reports/{id}/ — детали заявления
+    - PUT/PATCH /api/theft-reports/{id}/ — обновление
+    - DELETE /api/theft-reports/{id}/ — удаление
+    - POST /api/theft-reports/emergency/ — экстренное заявление по коду бронирования
+    - POST /api/theft-reports/{id}/update_status/ — обновление статуса заявления
+    """
+
     queryset = TheftReport.objects.all()
     serializer_class = TheftReportSerializer
     permission_classes = [AllowAny]
 
     @action(detail=False, methods=['post'])
     def emergency(self, request):
+        """Экстренное заявление об угоне по коду бронирования.
+
+        Args:
+            booking_code: Код бронирования
+            user_name: Имя заявителя (опционально)
+            user_phone: Телефон (опционально)
+            description: Описание (опционально)
+        """
         booking_code = request.data.get('booking_code')
         user_name = request.data.get('user_name')
         user_phone = request.data.get('user_phone')
@@ -398,14 +544,19 @@ class TheftReportViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def update_status(self, request, pk=None):
+        """Обновляет статус заявления об угоне.
+
+        Args:
+            status: Новый статус (new, in_progress, resolved, false_alarm)
+        """
         report = self.get_object()
         new_status = request.data.get('status')
 
         valid_statuses = ['new', 'in_progress', 'resolved', 'false_alarm']
         if new_status not in valid_statuses:
             return Response(
-                    {'error': f'Допустимые статусы: {valid_statuses}'},
-                    status=status.HTTP_400_BAD_REQUEST
+                {'error': f'Допустимые статусы: {valid_statuses}'},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         report.status = new_status

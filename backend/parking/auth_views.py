@@ -1,3 +1,13 @@
+"""Вьюхи для аутентификации пользователей.
+
+Содержит:
+- RegisterView — регистрация нового пользователя
+- LoginView — вход и получение JWT-токенов
+- LogoutView — выход (blacklist refresh-токена)
+- RefreshTokenView — обновление access-токена
+- ProfileView — получение профиля текущего пользователя
+"""
+
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -13,7 +23,21 @@ User = get_user_model()
 
 
 class RegisterView(generics.CreateAPIView):
- 
+    """Регистрация нового пользователя.
+
+    Ожидает JSON с полями:
+        - username (str): Имя пользователя
+        - email (str): Email
+        - password (str): Пароль (минимум 8 символов)
+        - password_confirm (str): Подтверждение пароля
+        - phone (str, опционально): Номер телефона
+
+    Returns:
+        201 Created: Пользователь создан, возвращает access_token и refresh_token
+        400 Bad Request: Ошибки валидации (не все поля, пароль короткий, email некорректный,
+                         пароли не совпадают, пользователь уже существует)
+    """
+
     queryset = User.objects.all()
     permission_classes = [AllowAny]
 
@@ -23,7 +47,6 @@ class RegisterView(generics.CreateAPIView):
         password = request.data.get('password')
         password_confirm = request.data.get('password_confirm')
         phone = request.data.get('phone', '')
-
 
         if not all([username, email, password]):
             return Response(
@@ -38,7 +61,6 @@ class RegisterView(generics.CreateAPIView):
                 {'error': 'Некорректный email'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
 
         if len(password) < 8:
             return Response(
@@ -86,6 +108,17 @@ class RegisterView(generics.CreateAPIView):
 
 
 class LoginView(APIView):
+    """Аутентификация пользователя и выдача JWT-токенов.
+
+    Ожидает JSON с полями:
+        - username (str): Имя пользователя
+        - password (str): Пароль
+
+    Returns:
+        200 OK: Возвращает access_token и refresh_token
+        400 Bad Request: Отсутствуют username или password
+        401 Unauthorized: Неверные учётные данные
+    """
 
     permission_classes = [AllowAny]
 
@@ -121,6 +154,15 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
+    """Выход пользователя (blacklist refresh-токена).
+
+    Ожидает JSON с полем:
+        - refresh_token (str): Refresh-токен для инвалидации
+
+    Returns:
+        200 OK: Токен добавлен в blacklist
+        400 Bad Request: Неверный или отсутствующий токен
+    """
 
     permission_classes = [IsAuthenticated]
 
@@ -129,7 +171,7 @@ class LogoutView(APIView):
             refresh_token = request.data.get('refresh_token')
             token = RefreshToken(refresh_token)
             token.blacklist()
-            
+
             return Response({
                 'success': True,
                 'message': 'Выход выполнен успешно'
@@ -142,7 +184,16 @@ class LogoutView(APIView):
 
 
 class RefreshTokenView(APIView):
-    
+    """Обновление access-токена по refresh-токену.
+
+    Ожидает JSON с полем:
+        - refresh_token (str): Действующий refresh-токен
+
+    Returns:
+        200 OK: Новый access_token
+        400 Bad Request: Отсутствует или неверный refresh_token
+    """
+
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
@@ -171,12 +222,18 @@ class RefreshTokenView(APIView):
 
 
 class ProfileView(APIView):
-    
+    """Получение профиля текущего авторизованного пользователя.
+
+    Returns:
+        200 OK: Данные пользователя (id, username, email, first_name, last_name, date_joined, last_login)
+        401 Unauthorized: Пользователь не авторизован
+    """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         user = request.user
-        
+
         return Response({
             'user_id': user.id,
             'username': user.username,
