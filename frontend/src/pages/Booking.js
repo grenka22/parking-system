@@ -69,7 +69,7 @@ const Booking = () => {
     <Container maxWidth="md" sx={{ mt: 4 }}>
       <Paper sx={{ p: 4 }}>
         <Typography variant="h5" gutterBottom>
-          🅿️ Бронирование места
+          Бронирование места
         </Typography>
 
         <Box sx={{ mb: 3 }}>
