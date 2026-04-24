@@ -1,9 +1,25 @@
+"""Регистрация моделей в административной панели Django.
+
+Содержит классы Admin для каждой модели:
+- ZoneAdmin: отображение зон с цветовой индикацией загруженности
+- ParkingSlotAdmin: управление парковочными местами (занятость, активность)
+- ReservationAdmin: управление бронированиями (подтверждение, отмена)
+- OccupancyHistoryAdmin: просмотр истории загруженности
+- TheftReportAdmin: обработка заявлений об угоне
+- CameraLogAdmin: просмотр логов камер видеонаблюдения
+"""
+
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import Zone, ParkingSlot, Reservation, OccupancyHistory, TheftReport, CameraLog
 
+
 @admin.register(Zone)
 class ZoneAdmin(admin.ModelAdmin):
+    """Админ-панель для зон парковки.
+    
+    Отображает название, тип, вместимость, загруженность цветом.
+    """
     list_display = ['name', 'zone_type', 'capacity', 'get_current_load_display', 'priority', 'created_at']
     list_filter = ['zone_type', 'priority']
     search_fields = ['name','description']
@@ -12,19 +28,22 @@ class ZoneAdmin(admin.ModelAdmin):
     def get_current_load_display(self, obj):
         load = obj.get_current_load()
         color = 'green' if load < 50 else 'orange' if load < 80 else 'red'
-        return format_html( '<span style="color: {}">{:.1f}%</span>', color, load )
+        return format_html('<span style="color: {}">{:.1f}%</span>', color, load)
     get_current_load_display.short_description = 'Загруженность'
 
 
 @admin.register(ParkingSlot)
 class ParkingSlotAdmin(admin.ModelAdmin):
-    list_display = ['number', 'zone', 'is_occupied', 'is_active', 'is_disabled', 'created_at' ]
+    """Админ-панель для парковочных мест.
+    
+    Позволяет массово изменять статусы: занято/свободно/деактивировано.
+    """
+    list_display = ['number', 'zone', 'is_occupied', 'is_active', 'is_disabled', 'created_at']
     list_filter = ['zone', 'is_occupied', 'is_active', 'is_disabled']
     search_fields = ['number', 'zone__name']
     ordering = ['zone', 'number']
     actions = ['make_occupied', 'make_free', 'deactivate_slots']
 
-    
     def make_occupied(self, request, queryset):
         queryset.update(is_occupied=True)
         self.message_user(request, f'{queryset.count()} мест занято')
@@ -35,7 +54,6 @@ class ParkingSlotAdmin(admin.ModelAdmin):
         self.message_user(request, f'{queryset.count()} мест помечено как свободные')
     make_free.short_description = 'Пометить как свободные'
 
-
     def deactivate_slots(self, request, queryset):
         queryset.update(is_active=False)
         self.message_user(request, f'{queryset.count()} мест деактивированы')
@@ -44,7 +62,12 @@ class ParkingSlotAdmin(admin.ModelAdmin):
 
 @admin.register(Reservation)
 class ReservationAdmin(admin.ModelAdmin):
-    list_display = ['booking_code', 'user_name', 'slot', 'zone_display','start_time', 'end_time', 'status', 'is_guest','camera_recording', 'created_at']
+    """Админ-панель для бронирований.
+    
+    Отображает код брони, пользователя, слот, время, статус.
+    Позволяет подтверждать, отменять и завершать бронирования.
+    """
+    list_display = ['booking_code', 'user_name', 'slot', 'zone_display', 'start_time', 'end_time', 'status', 'is_guest', 'camera_recording', 'created_at']
     list_filter = ['status', 'is_guest', 'camera_recording', 'slot__zone']
     search_fields = ['user_name', 'user_phone', 'user_email', 'booking_code', 'slot__number']
     ordering = ['-created_at']
@@ -67,17 +90,22 @@ class ReservationAdmin(admin.ModelAdmin):
 
     def cancel_reservations(self, request, queryset):
         from django.utils import timezone
-        queryset.update(status='cancelled',cancelled_at=timezone.now())
+        queryset.update(status='cancelled', cancelled_at=timezone.now())
         self.message_user(request, f'{queryset.count()} бронирований отменено')
     cancel_reservations.short_description = 'Отменить выбранные'
 
     def mark_completed(self, request, queryset):
-        queryset.update(status = 'completed')
+        queryset.update(status='completed')
         self.message_user(request, f'{queryset.count()} бронирований завершено')
     mark_completed.short_description = 'Пометить как завершенные'
 
+
 @admin.register(OccupancyHistory)
 class OccupancyHistoryAdmin(admin.ModelAdmin):
+    """Админ-панель для истории загруженности.
+    
+    Показывает occupancy_rate (процент занятости зоны) с разбивкой по часам/дням.
+    """
     list_display = ['zone', 'timestamp', 'occupied_count', 'total_capacity', 'occupancy_rate', 'day_of_week', 'hour', 'is_holiday']
     list_filter = ['zone', 'day_of_week', 'hour', 'is_holiday']
     search_fields = ['zone__name']
@@ -87,6 +115,10 @@ class OccupancyHistoryAdmin(admin.ModelAdmin):
 
 @admin.register(TheftReport)
 class TheftReportAdmin(admin.ModelAdmin):
+    """Админ-панель для заявлений об угоне.
+    
+    Позволяет менять статус: в работе, решено, ложная тревога.
+    """
     list_display = ['id', 'reservation', 'user_name', 'status', 'reported_at', 'resolved_at']
     list_filter = ['status']
     search_fields = ['user_name', 'user_phone', 'reservation__booking_code']
@@ -95,24 +127,29 @@ class TheftReportAdmin(admin.ModelAdmin):
     actions = ['mark_in_progress', 'mark_resolved', 'mark_false_alarm']
 
     def mark_in_progress(self, request, queryset):
-        queryset.update(status = 'in_progress')
+        queryset.update(status='in_progress')
         self.message_user(request, f'{queryset.count()} заявлений в обработке')
     mark_in_progress.short_description = 'Взять в работу'
 
     def mark_resolved(self, request, queryset):
         from django.utils import timezone
-        queryset.update(status = 'resolved', resolved_at = timezone.now())
+        queryset.update(status='resolved', resolved_at=timezone.now())
         self.message_user(request, f'{queryset.count()} заявлений решено')
+    mark_resolved.short_description = 'Решено'
 
     def mark_false_alarm(self, request, queryset):
         from django.utils import timezone
         queryset.update(status='false_alarm', resolved_at=timezone.now())
         self.message_user(request, f'{queryset.count()} заявлений - ложная тревога')
-
     mark_false_alarm.short_description = 'Ложная тревога'
+
 
 @admin.register(CameraLog)
 class CameraLogAdmin(admin.ModelAdmin):
+    """Админ-панель для логов камер.
+    
+    Отображает запись видео для конкретного слота и бронирования.
+    """
     list_display = ['slot', 'reservation', 'recording_started', 'recording_ended', 'created_at']
     list_filter = ['slot__zone']
     search_fields = ['slot__number', 'reservation__booking_code']

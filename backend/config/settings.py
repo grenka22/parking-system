@@ -1,3 +1,12 @@
+"""Настройки Django-проекта config.
+
+Содержит конфигурацию:
+- Установленные приложения (INSTALLED_APPS)
+- Промежуточные слои (MIDDLEWARE)
+- Настройки базы данных (DATABASES)
+- Настройки JWT-аутентификации (SIMPLE_JWT, REST_FRAMEWORK)
+- CORS-настройки для API
+"""
 """
 Django settings for config project.
 
