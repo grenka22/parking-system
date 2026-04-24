@@ -62,7 +62,7 @@ const Register = () => {
       >
         <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
           <Typography component="h1" variant="h5" align="center" gutterBottom>
-            🚗 Парковка
+            Парковка
           </Typography>
           <Typography component="h2" variant="h6" align="center" gutterBottom>
             Регистрация
