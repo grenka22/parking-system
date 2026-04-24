@@ -88,7 +88,7 @@ const Login = () => {
             >
               {loading ? 'Вход...' : 'Войти'}
             </Button>
-            <Box textAlign="center">
+            <Box sx={{ textAlign: 'center' }}>
               <Link to="/register" style={{ textDecoration: 'none' }}>
                 Нет аккаунта? Зарегистрироваться
               </Link>

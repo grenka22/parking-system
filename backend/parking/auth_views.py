@@ -87,7 +87,7 @@ class RegisterView(generics.CreateAPIView):
 
 class LoginView(APIView):
 
-    permission_classes = [AllowAny]
+    permission_classes = []
 
     def post(self, request, *args, **kwargs):
         username = request.data.get('username')
