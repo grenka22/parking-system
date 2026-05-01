@@ -3,7 +3,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 # Импортируем ViewSets из parking
-from parking.views import ZoneViewSet, ParkingSlotViewSet, ReservationViewSet, TheftReportViewSet
+from parking.views import ZoneViewSet, ParkingSlotViewSet, ReservationViewSet
 
 # Импортируем auth views
 from parking.auth_views import RegisterView, LoginView, LogoutView, RefreshTokenView, ProfileView
@@ -19,7 +19,7 @@ router = DefaultRouter()
 router.register(r'zones', ZoneViewSet)
 router.register(r'slots', ParkingSlotViewSet)
 router.register(r'reservations', ReservationViewSet)
-router.register(r'theft-reports', TheftReportViewSet)
+#router.register(r'theft-reports', TheftReportViewSet)
 
 # URL паттерны
 urlpatterns = [

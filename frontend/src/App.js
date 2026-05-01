@@ -51,7 +51,7 @@ const PrivateRoute = ({ children }) => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <Router>  {/* ← Router должен быть ЗДЕСЬ! */}
         <NavBar />
         <Routes>
           <Route path="/login" element={<Login />} />

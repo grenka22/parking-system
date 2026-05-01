@@ -75,6 +75,7 @@ export const zonesAPI = {
 
 export const slotsAPI = {
   getAll: () => api.get('/slots/'),
+  getById: (id) => api.get(`/slots/${id}/`),
   getAvailable: () => api.get('/slots/available/'),
   getLeastLoaded: () => api.get('/slots/least_loaded/'),
   getMap: () => api.get('/slots/map/'),

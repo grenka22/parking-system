@@ -6,13 +6,39 @@ from .models import Zone, ParkingSlot, Reservation, OccupancyHistory, TheftRepor
 class ZoneAdmin(admin.ModelAdmin):
     list_display = ['name', 'zone_type', 'capacity', 'get_current_load_display', 'priority', 'created_at']
     list_filter = ['zone_type', 'priority']
-    search_fields = ['name','description']
-    ordering = ['priority','name']
+    search_fields = ['name', 'description']
+    ordering = ['priority', 'name']
 
     def get_current_load_display(self, obj):
-        load = obj.get_current_load()
-        color = 'green' if load < 50 else 'orange' if load < 80 else 'red'
-        return format_html( '<span style="color: {}">{:.1f}%</span>', color, load )
+        """Отображение загруженности зоны"""
+        try:
+            # Получаем загруженность
+            load = obj.get_current_load()
+            
+            # Гарантируем что это число
+            if isinstance(load, str):
+                # Если строка - пытаемся конвертировать
+                load = float(load.replace('%', '').strip())
+            else:
+                load = float(load) if load is not None else 0.0
+            
+            # Определяем цвет
+            if load < 50:
+                color = 'green'
+            elif load < 80:
+                color = 'orange'
+            else:
+                color = 'red'
+            
+            # Возвращаем HTML
+            return format_html(
+                '<span style="color: {}; font-weight: bold;">{:.1f}%</span>',
+                color, load
+            )
+        except (ValueError, TypeError, AttributeError) as e:
+            # Если ошибка - показываем "N/A"
+            return format_html('<span style="color: gray;">N/A</span>')
+    
     get_current_load_display.short_description = 'Загруженность'
 
 
@@ -44,7 +70,7 @@ class ParkingSlotAdmin(admin.ModelAdmin):
 
 @admin.register(Reservation)
 class ReservationAdmin(admin.ModelAdmin):
-    list_display = ['booking_code', 'user_name', 'slot', 'zone_display','start_time', 'end_time', 'status', 'is_guest','camera_recording', 'created_at']
+    list_display = ['booking_code', 'get_user_name', 'slot', 'zone_display','start_time', 'end_time', 'status', 'is_guest','camera_recording', 'created_at']
     list_filter = ['status', 'is_guest', 'camera_recording', 'slot__zone']
     search_fields = ['user_name', 'user_phone', 'user_email', 'booking_code', 'slot__number']
     ordering = ['-created_at']
