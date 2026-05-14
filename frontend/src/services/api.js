@@ -1,113 +1,89 @@
-import axios from 'axios'
+import axios from 'axios';
 
-const API_BASE_URL = "http://localhost:8000/api"
+const API_BASE_URL = "http://localhost:8000/api";
 
 const api = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-        'Content-Type' : 'application/json',
-    },
+  baseURL: API_BASE_URL,
+  headers: { 'Content-Type': 'application/json' },
 });
 
-api.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem('access_token');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => Promise.reject(error)
-
-);
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, (error) => Promise.reject(error));
 
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-
-    if (error.response.status === 401 && !originalRequest._retry) {
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-
+      
       try {
         const refreshToken = localStorage.getItem('refresh_token');
+        if (!refreshToken) throw new Error('No refresh token');
+        
         const response = await axios.post(`${API_BASE_URL}/auth/refresh/`, {
-          refresh_token: refreshToken,
+          refresh: refreshToken,
         });
 
-        const { access_token } = response.data;
-        localStorage.setItem('access_token', access_token);
-
-        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        const { access } = response.data;
+        localStorage.setItem('access_token', access);
+        
+        originalRequest.headers.Authorization = `Bearer ${access}`;
         return api(originalRequest);
       } catch (refreshError) {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }
     }
-
+    
     return Promise.reject(error);
   }
 );
 
-
 export const authAPI = {
-    login: (username, password) =>
-        api.post('/auth/login/', {username,password}),
-    register: (userData) =>
-        api.post('/auth/register/', userData),
-  
-    logout: (refreshToken) =>
-        api.post('/auth/logout/', { refresh_token: refreshToken }),
-  
-    getProfile: () =>
-        api.get('/auth/profile/'),
+  login: (username, password) => 
+    api.post('/auth/login/', { username, password }),
+  register: (userData) => 
+    api.post('/auth/register/', userData),
+  getProfile: () => 
+    api.get('/auth/profile/'),
+  logout: () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+  },
 };
 
 export const zonesAPI = {
   getAll: () => api.get('/zones/'),
-  getById: (id) => api.get(`/zones/${id}/`),
-  getAvailability: () => api.get('/zones/availability/'),
-  getRecommendations: () => api.get('/zones/recommendations/'),
 };
 
 export const slotsAPI = {
   getAll: () => api.get('/slots/'),
-  getById: (id) => api.get(`/slots/${id}/`),
   getAvailable: () => api.get('/slots/available/'),
-  getLeastLoaded: () => api.get('/slots/least_loaded/'),
-  getMap: () => api.get('/slots/map/'),
-  checkAvailability: (id, startTime, endTime) =>
-    api.post(`/slots/${id}/check_availability/`, {
-      start_time: startTime,
-      end_time: endTime,
-    }),
+  getById: (id) => api.get(`/slots/${id}/`),
+  recommend: (data) => api.post('/slots/recommend/', data),  // ← ДОБАВЬ ЭТО!
 };
 
 export const reservationsAPI = {
-  getAll: () => api.get('/reservations/'),
-  getActive: () => api.get('/reservations/active/'),
-  getMyReservations: (email, phone) =>
-    api.get('/reservations/my_reservations/', {
-      params: { email, phone },
-    }),
+  getMyReservations: () => api.get('/reservations/my_reservations/'),
   quickBook: (data) => api.post('/reservations/quick_book/', data),
   cancel: (id) => api.post(`/reservations/${id}/cancel/`),
-  confirm: (id) => api.post(`/reservations/${id}/confirm/`),
-  getStatistics: () => api.get('/reservations/statistics/'),
+  confirm: (id) => api.post(`/reservations/${id}/confirm_arrival/`),
 };
 
-export const predictionsAPI = {
-  getAvailability: (zoneId, targetTime) =>
-    api.get('/predictions/availability/', {
-      params: { zone_id: zoneId, target_time: targetTime },
-    }),
-  getRecommendations: (limit = 5, targetTime) =>
-    api.get('/predictions/recommendations/', {
-      params: { limit, target_time: targetTime },
-    }),
+export const theftAPI = {
+  create: (data) => api.post('/theft-reports/', data),
+  getMyReports: () => api.get('/theft-reports/my_reports/'),
 };
 
 export default api;

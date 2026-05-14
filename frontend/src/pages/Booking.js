@@ -9,10 +9,16 @@ import {
   Paper,
   Alert,
   CircularProgress,
+  Grid,
+  Card,
+  CardContent,
+  Chip,
+  Rating,
 } from '@mui/material';
 import { slotsAPI, reservationsAPI } from '../services/api';
+import CarPlates from '../components/CarPlates';
+import { Star, SwapHoriz, AutoAwesome } from '@mui/icons-material';
 
-// ✅ ВСЁ ВНУТРИ КОМПОНЕНТА!
 const Booking = () => {
   const { slotId } = useParams();
   const navigate = useNavigate();
@@ -30,6 +36,13 @@ const Booking = () => {
     user_phone: '',
     user_email: '',
   });
+  
+  const [licensePlate, setLicensePlate] = useState('');
+  
+  // Состояние для рекомендаций
+  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [recommendations, setRecommendations] = useState([]);
+  const [recommendLoading, setRecommendLoading] = useState(false);
 
   useEffect(() => {
     fetchSlotData();
@@ -37,6 +50,7 @@ const Booking = () => {
 
   const fetchSlotData = async () => {
     try {
+      setLoading(true);
       const response = await slotsAPI.getById(slotId);
       setSlot(response.data);
       
@@ -48,7 +62,7 @@ const Booking = () => {
         user_phone: userData.phone || '',
       }));
     } catch (err) {
-      console.error('Error:', err);
+      console.error('Error fetching slot:', err);
       setError('Не удалось загрузить информацию о месте');
     } finally {
       setLoading(false);
@@ -63,9 +77,53 @@ const Booking = () => {
     }));
   };
 
+  // Получение рекомендаций
+  const handleGetRecommendations = async () => {
+    if (!formData.start_time || !formData.end_time) {
+      setError('Сначала укажите время бронирования');
+      return;
+    }
+
+    setRecommendLoading(true);
+    setError('');
+    setShowRecommendations(true);
+
+    try {
+      const response = await slotsAPI.recommend({
+        start_time: new Date(formData.start_time).toISOString(),
+        end_time: new Date(formData.end_time).toISOString(),
+      });
+
+      if (response.data.success) {
+        setRecommendations(response.data.recommendations || []);
+      } else {
+        setError(response.data.message || 'Нет доступных мест');
+        setRecommendations([]);
+      }
+    } catch (err) {
+      console.error('Recommendation error:', err);
+      setError(err.response?.data?.error || 'Ошибка при получении рекомендаций');
+      setRecommendations([]);
+    } finally {
+      setRecommendLoading(false);
+    }
+  };
+
+  // Выбор рекомендованного места
+  const handleSelectRecommendedSlot = (recommendedSlotId) => {
+    if (recommendedSlotId === parseInt(slotId)) {
+      setShowRecommendations(false);
+      return;
+    }
+    
+    // Перенаправляем на бронирование выбранного места
+    navigate(`/book/${recommendedSlotId}`);
+  };
+
   const formatDateTime = (dateString) => {
     if (!dateString) return '';
-    return new Date(dateString).toISOString().slice(0, 19);
+    const date = new Date(dateString);
+    return date.toISOString().slice(0, 19);
   };
 
   const handleSubmit = async (e) => {
@@ -75,25 +133,56 @@ const Booking = () => {
     setBookingLoading(true);
 
     try {
+      const token = localStorage.getItem('access_token');
+      const isGuestBooking = !token;
+
+      // Проверка номера машины
+      const plateClean = licensePlate ? licensePlate.replace(/[\s-]/g, '') : '';
+      if (!licensePlate || plateClean.length < 6) {
+        throw new Error('Введите корректный номер автомобиля');
+      }
+
+      // Проверка времени
+      if (!formData.start_time || !formData.end_time) {
+        throw new Error('Укажите время начала и окончания');
+      }
+
+      const start = new Date(formData.start_time);
+      const end = new Date(formData.end_time);
+      
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        throw new Error('Неверный формат даты');
+      }
+      
+      if (end <= start) {
+        throw new Error('Время окончания должно быть позже времени начала');
+      }
+
+      const duration = (end - start) / (1000 * 60 * 60);
+      if (duration > 3) {
+        throw new Error('Максимальное время бронирования — 3 часа');
+      }
+
+      const now = new Date();
+      if (start.getTime() < (now.getTime() - 120000)) {
+        throw new Error('Время начала должно быть в будущем');
+      }
+
       const bookingData = {
         slot_id: parseInt(slotId),
         start_time: formatDateTime(formData.start_time),
         end_time: formatDateTime(formData.end_time),
-        user_name: formData.user_name,
-        user_phone: formData.user_phone,
-        user_email: formData.user_email,
-        is_guest: true,
+        is_guest: isGuestBooking,
+        license_plate: licensePlate,
       };
 
-      if (!bookingData.start_time || !bookingData.end_time) {
-        throw new Error('Укажите время начала и окончания');
-      }
-
-      const start = new Date(bookingData.start_time);
-      const end = new Date(bookingData.end_time);
-      
-      if (end <= start) {
-        throw new Error('Время окончания должно быть позже');
+      if (isGuestBooking) {
+        if (!formData.user_name || !formData.user_phone || !formData.user_email) {
+          throw new Error('Заполните все контактные данные');
+        }
+        bookingData.guest_name = formData.user_name;
+        bookingData.guest_phone = formData.user_phone;
+        bookingData.guest_email = formData.user_email;
       }
 
       const response = await reservationsAPI.quickBook(bookingData);
@@ -106,7 +195,7 @@ const Booking = () => {
       
     } catch (err) {
       console.error('Booking error:', err);
-      setError(err.response?.data?.error || 'Ошибка при создании брони');
+      setError(err.response?.data?.error || err.message || 'Ошибка при создании брони');
     } finally {
       setBookingLoading(false);
     }
@@ -116,6 +205,7 @@ const Booking = () => {
     return (
       <Container maxWidth="md" sx={{ mt: 8, textAlign: 'center' }}>
         <CircularProgress />
+        <Typography sx={{ mt: 2 }}>Загрузка информации о месте...</Typography>
       </Container>
     );
   }
@@ -143,12 +233,131 @@ const Booking = () => {
             🅿️ Бронирование места
           </Typography>
           
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            {slot.number}
-          </Typography>
-          <Typography variant="body1" color="text.secondary" gutterBottom>
-            Зона: {slot.zone?.name || 'Неизвестно'}
-          </Typography>
+          {/* Информация о месте */}
+          <Card variant="outlined" sx={{ mb: 3, bgcolor: '#f5f5f5' }}>
+            <CardContent>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="h6">
+                    Место {slot.number}
+                  </Typography>
+                  <Typography color="textSecondary">
+                    Зона: {slot.zone_name || slot.zone?.name || 'Неизвестно'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Chip 
+                    label={slot.is_active ? 'Активно' : 'Неактивно'} 
+                    color={slot.is_active ? 'success' : 'default'}
+                  />
+                  {slot.zone_type && (
+                    <Chip 
+                      label={slot.zone_type} 
+                      size="small" 
+                      sx={{ ml: 1 }}
+                    />
+                  )}
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+
+          {/* 🎯 БЛОК УМНОЙ РЕКОМЕНДАЦИИ */}
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AutoAwesome sx={{ color: '#1976d2' }} />
+                <Typography variant="body2" fontWeight="bold">
+                  🤖 Умный подбор места
+                </Typography>
+              </Box>
+              
+              <Typography variant="body2" color="textSecondary">
+                Не уверены в выборе? Наш алгоритм подберет лучшее место на основе вашего времени!
+              </Typography>
+              
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={handleGetRecommendations}
+                  disabled={recommendLoading || !formData.start_time || !formData.end_time}
+                  startIcon={recommendLoading ? <CircularProgress size={16} /> : <Star />}
+                >
+                  {recommendLoading ? 'Подбираем...' : 'Подобрать лучшее место'}
+                </Button>
+                
+                {recommendations.length > 0 && (
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={() => setShowRecommendations(!showRecommendations)}
+                  >
+                    {showRecommendations ? 'Скрыть' : 'Показать рекомендации'}
+                  </Button>
+                )}
+              </Box>
+
+              {/* Список рекомендаций */}
+              {showRecommendations && recommendations.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Рекомендуемые места:
+                  </Typography>
+                  
+                  {recommendations.map((rec) => (
+                    <Card
+                      key={rec.slot_id}
+                      sx={{
+                        mb: 1,
+                        cursor: 'pointer',
+                        border: slotId === rec.slot_id.toString() 
+                          ? '2px solid #1976d2' 
+                          : '1px solid #e0e0e0',
+                        bgcolor: slotId === rec.slot_id.toString() ? '#e3f2fd' : 'inherit',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          bgcolor: '#f5f5f5',
+                          transform: 'translateX(4px)',
+                        }
+                      }}
+                      onClick={() => handleSelectRecommendedSlot(rec.slot_id)}
+                    >
+                      <CardContent sx={{ py: 1, px: 2 }}>
+                        <Grid container spacing={1} alignItems="center">
+                          <Grid item xs={3} sm={2}>
+                            <Typography variant="body2" fontWeight="bold">
+                              {rec.rank_icon} #{rec.slot_number}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={4} sm={3}>
+                            <Chip 
+                              label={rec.zone_name} 
+                              size="small" 
+                              variant="outlined"
+                            />
+                          </Grid>
+                          <Grid item xs={3} sm={3}>
+                            <Typography variant="caption" color="textSecondary">
+                              Загруженность: {rec.zone_load_percent}%
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={2} sm={4}>
+                            <Typography variant="caption" color="textSecondary">
+                              Score: {rec.score}
+                            </Typography>
+                          </Grid>
+                        </Grid>
+                        <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+                          💡 {rec.reason_text}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          </Alert>
 
           {error && (
             <Alert severity="error" sx={{ mb: 2, mt: 2 }}>
@@ -163,70 +372,105 @@ const Booking = () => {
           )}
 
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                label="Время начала *"
-                type="datetime-local"
-                name="start_time"
-                value={formData.start_time}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                sx={{ flex: 1, minWidth: 200 }}
-              />
+            {/* Время бронирования */}
+            <Typography variant="h6" gutterBottom>
+              📅 Время бронирования
+            </Typography>
+            
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  label="Время начала *"
+                  type="datetime-local"
+                  name="start_time"
+                  value={formData.start_time}
+                  onChange={handleChange}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
               
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                label="Время окончания *"
-                type="datetime-local"
-                name="end_time"
-                value={formData.end_time}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-                sx={{ flex: 1, minWidth: 200 }}
-              />
-            </Box>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  label="Время окончания *"
+                  type="datetime-local"
+                  name="end_time"
+                  value={formData.end_time}
+                  onChange={handleChange}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+            </Grid>
 
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              label="Имя *"
-              name="user_name"
-              value={formData.user_name}
-              onChange={handleChange}
+            <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
+              ⏱️ Максимальное время бронирования — 3 часа
+            </Alert>
+
+            {/* Номер автомобиля */}
+            <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+              🚗 Информация об автомобиле
+            </Typography>
+            
+            <CarPlates
+              value={licensePlate}
+              onChange={setLicensePlate}
+              error={!!error && !licensePlate}
+              helperText="Введите номер автомобиля для бронирования"
             />
 
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                label="Телефон *"
-                name="user_phone"
-                value={formData.user_phone}
-                onChange={handleChange}
-                sx={{ flex: 1, minWidth: 200 }}
-              />
-              
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                label="Email *"
-                name="user_email"
-                type="email"
-                value={formData.user_email}
-                onChange={handleChange}
-                sx={{ flex: 1, minWidth: 200 }}
-              />
-            </Box>
+            {/* Поля для гостей */}
+            {!localStorage.getItem('access_token') && (
+              <>
+                <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+                  👤 Контактная информация
+                </Typography>
+                
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  label="Имя *"
+                  name="user_name"
+                  value={formData.user_name}
+                  onChange={handleChange}
+                />
 
-            <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      margin="normal"
+                      required
+                      fullWidth
+                      label="Телефон *"
+                      name="user_phone"
+                      value={formData.user_phone}
+                      onChange={handleChange}
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      margin="normal"
+                      required
+                      fullWidth
+                      label="Email *"
+                      name="user_email"
+                      type="email"
+                      value={formData.user_email}
+                      onChange={handleChange}
+                    />
+                  </Grid>
+                </Grid>
+              </>
+            )}
+
+            {/* Кнопки */}
+            <Box sx={{ display: 'flex', gap: 2, mt: 4 }}>
               <Button
                 type="submit"
                 variant="contained"
@@ -246,6 +490,11 @@ const Booking = () => {
                 ОТМЕНА
               </Button>
             </Box>
+
+            {/* Информация о лимите */}
+            <Alert severity="warning" sx={{ mt: 3 }}>
+              ⚠️ Один пользователь может иметь максимум 3 активных бронирования
+            </Alert>
           </Box>
         </Paper>
       </Box>

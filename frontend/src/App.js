@@ -5,6 +5,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Booking from './pages/Booking';
+import TheftReport from './pages/TheftReport';
+
 import { Container, Button, AppBar, Toolbar, Typography, Box } from '@mui/material';
 
 const NavBar = () => {
@@ -54,8 +56,10 @@ function App() {
       <Router>  {/* ← Router должен быть ЗДЕСЬ! */}
         <NavBar />
         <Routes>
+          
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/theft-report/:reservationId" element={<TheftReport />} />
           <Route
             path="/dashboard"
             element={
@@ -72,6 +76,7 @@ function App() {
               </PrivateRoute>
             }
           />
+
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>
       </Router>

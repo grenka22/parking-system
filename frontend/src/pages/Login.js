@@ -1,26 +1,17 @@
-import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  Container,
-  Box,
-  Typography,
-  TextField,
-  Button,
-  Paper,
-  Alert,
+  Container, Box, Paper, Typography, TextField,
+  Button, Alert, CircularProgress
 } from '@mui/material';
 
 const Login = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const [formData, setFormData] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-
-  const { login } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,77 +19,61 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(username, password);
+      await login(formData.username, formData.password);
       navigate('/dashboard');
     } catch (err) {
-      setError('Invalid username or password');
+      setError(err.response?.data?.detail || 'Ошибка входа');
     } finally {
       setLoading(false);
-    }   }; 
+    }
+  };
 
   return (
-    <Container component="main" maxWidth="xs">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
-          <Typography component="h1" variant="h5" align="center" gutterBottom>
-            🚗 Парковка
-          </Typography>
-          <Typography component="h2" variant="h6" align="center" gutterBottom>
-            Вход в систему
-          </Typography>
+    <Container maxWidth="sm" sx={{ mt: 8 }}>
+      <Paper elevation={3} sx={{ p: 4 }}>
+        <Typography variant="h5" align="center" gutterBottom>
+          🚗 Вход в систему
+        </Typography>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              label="Имя пользователя"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoFocus
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              label="Пароль"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              disabled={loading}
-              sx={{ mt: 3, mb: 2 }}
-            >
-              {loading ? 'Вход...' : 'Войти'}
-            </Button>
-            <Box sx={{ textAlign: 'center' }}>
-              <Link to="/register" style={{ textDecoration: 'none' }}>
-                Нет аккаунта? Зарегистрироваться
-              </Link>
-            </Box>
+        <Box component="form" onSubmit={handleSubmit}>
+          <TextField
+            fullWidth
+            label="Имя пользователя"
+            name="username"
+            value={formData.username}
+            onChange={(e) => setFormData({...formData, username: e.target.value})}
+            margin="normal"
+            required
+          />
+          <TextField
+            fullWidth
+            label="Пароль"
+            name="password"
+            type="password"
+            value={formData.password}
+            onChange={(e) => setFormData({...formData, password: e.target.value})}
+            margin="normal"
+            required
+          />
+          <Button
+            type="submit"
+            variant="contained"
+            fullWidth
+            size="large"
+            disabled={loading}
+            sx={{ mt: 3 }}
+          >
+            {loading ? <CircularProgress size={24} /> : 'ВОЙТИ'}
+          </Button>
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Link to="/register">Нет аккаунта? Зарегистрироваться</Link>
           </Box>
-        </Paper>
-      </Box>
+        </Box>
+      </Paper>
     </Container>
   );
 };
 
 export default Login;
-                    
