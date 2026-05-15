@@ -6,6 +6,8 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Booking from './pages/Booking';
 import TheftReport from './pages/TheftReport';
+import CameraStub from './pages/CameraStub';
+import Slots from './pages/Slots';
 
 import { Container, Button, AppBar, Toolbar, Typography, Box } from '@mui/material';
 
@@ -67,17 +69,10 @@ function App() {
                 <Dashboard />
               </PrivateRoute>
             }
-          />
-          <Route
-            path="/book/:slotId"
-            element={
-              <PrivateRoute>
-                <Booking />
-              </PrivateRoute>
-            }
-          />
-
+          /><Route path="/book/:slotId" element={<Booking />} />
+          <Route path="/camera/:slotId" element={<CameraStub />} />
           <Route path="/" element={<Navigate to="/dashboard" />} />
+          <Route path="/slots" element={<Slots />} />
         </Routes>
       </Router>
     </AuthProvider>

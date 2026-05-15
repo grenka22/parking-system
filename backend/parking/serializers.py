@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.utils import timezone
 from datetime import timedelta
 from .models import Zone, ParkingSlot, Reservation, TheftReport
+from .models import Camera, CameraRecording
 
 
 class ZoneSerializer(serializers.ModelSerializer):
@@ -95,3 +96,40 @@ class TheftReportSerializer(serializers.ModelSerializer):
             'description', 'status', 'reported_at', 'resolved_at'
         ]
         read_only_fields = ['reported_at', 'resolved_at', 'status']
+
+
+class CameraSerializer(serializers.ModelSerializer):
+    slot_number = serializers.IntegerField(source='slot.number', read_only=True)
+    zone_name = serializers.CharField(source='slot.zone.name', read_only=True)
+
+    class Meta:
+        model = Camera
+        fields = [
+            'id', 'name', 'slot', 'slot_number', 'zone_name',
+            'rtsp_url', 'is_active', 'is_recording', 'location',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class CameraRecordingSerializer(serializers.ModelSerializer):
+    camera_name = serializers.CharField(source='camera.name', read_only=True)
+    reservation_code = serializers.CharField(source='reservation.booking_code', read_only=True)
+
+    class Meta:
+        model = CameraRecording
+        fields = [
+            'id', 'camera', 'camera_name', 'reservation', 'reservation_code',
+            'video_path', 'thumbnail_path', 'detected_plate', 'expected_plate',
+            'plate_matched', 'confidence_score', 'status', 'duration_seconds',
+            'recorded_at', 'processed_at'
+        ]
+        read_only_fields = ['recorded_at', 'processed_at']
+
+
+class CameraVerifySerializer(serializers.Serializer):
+    """
+    Сервер для проверки прибытия через камеру
+    """
+    reservation_id = serializers.IntegerField(required=True)
+    auto_confirm = serializers.BooleanField(default=True, required=False)

@@ -32,7 +32,7 @@ const Login = () => {
     <Container maxWidth="sm" sx={{ mt: 8 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
         <Typography variant="h5" align="center" gutterBottom>
-          🚗 Вход в систему
+           Вход в систему
         </Typography>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}

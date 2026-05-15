@@ -6,6 +6,12 @@ from django.utils import timezone
 from datetime import timedelta, datetime, timezone as dt_timezone
 from .models import Zone, ParkingSlot, Reservation, TheftReport
 from .serializers import ZoneSerializer, ParkingSlotSerializer, ReservationSerializer, TheftReportSerializer
+from .models import Camera, CameraRecording
+from .serializers import CameraSerializer, CameraRecordingSerializer, CameraVerifySerializer
+from .services.plate_recognition import plate_recognizer
+import os
+from django.conf import settings
+from django.core.files.storage import default_storage
 
 
 class ZoneViewSet(viewsets.ModelViewSet):
@@ -606,3 +612,169 @@ class TheftReportViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(reports, many=True)
         return Response(serializer.data)
+    
+class CameraViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet для управления камерами
+    """
+    queryset = Camera.objects.all().select_related('slot', 'slot__zone')
+    serializer_class = CameraSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
+    
+    @action(detail=False, methods=['get'])
+    def by_slot(self, request):
+        """Получить камеру для конкретного места"""
+        slot_id = request.query_params.get('slot_id')
+        if not slot_id:
+            return Response({'error': 'Укажите slot_id'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        camera = Camera.objects.filter(slot_id=slot_id).first()
+        if not camera:
+            return Response({'message': 'Камера не найдена'}, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = self.get_serializer(camera)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def start_recording(self, request, pk=None):
+        """Начать запись с камеры"""
+        camera = self.get_object()
+        if not camera.is_active:
+            return Response({'error': 'Камера не активна'}, status=status.HTTP_400_BAD_REQUEST)
+        if not camera.rtsp_url:
+            return Response({'error': 'RTSP URL не настроен'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        camera.is_recording = True
+        camera.save()
+        
+        return Response({'success': True, 'message': 'Запись началась', 'camera_id': camera.id})
+    
+    @action(detail=True, methods=['post'])
+    def stop_recording(self, request, pk=None):
+        """Остановить запись с камеры"""
+        camera = self.get_object()
+        camera.is_recording = False
+        camera.save()
+        
+        return Response({'success': True, 'message': 'Запись остановлена', 'camera_id': camera.id})
+    
+    @action(detail=False, methods=['post'])
+    def verify_arrival(self, request):
+        """Проверить прибытие автомобиля через камеру"""
+        serializer = CameraVerifySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        reservation_id = serializer.validated_data['reservation_id']
+        auto_confirm = serializer.validated_data.get('auto_confirm', True)
+        
+        reservation = Reservation.objects.filter(id=reservation_id).first()
+        if not reservation:
+            return Response({'error': 'Бронирование не найдено'}, status=status.HTTP_404_NOT_FOUND)
+        
+        camera = Camera.objects.filter(slot=reservation.slot).first()
+        if not camera:
+            return Response({'error': 'Камера для этого места не найдена'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if not camera.rtsp_url:
+            return Response({'error': 'RTSP URL камеры не настроен'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            video_filename = f'recordings/{reservation.booking_code}_{timestamp}.mp4'
+            
+            os.makedirs(os.path.join(settings.MEDIA_ROOT, 'recordings'), exist_ok=True)
+            
+            # Для демонстрации - имитация распознавания
+            detected_plate = reservation.license_plate if reservation.license_plate else 'X000XX 00'
+            confidence = 0.85
+            
+            recording = CameraRecording.objects.create(
+                camera=camera,
+                reservation=reservation,
+                video_path=video_filename,
+                detected_plate=detected_plate,
+                expected_plate=reservation.license_plate,
+                plate_matched=True,
+                confidence_score=confidence,
+                status='completed',
+                duration_seconds=30
+            )
+            recording.processed_at = timezone.now()
+            recording.save()
+            
+            confirmed = False
+            if auto_confirm and recording.plate_matched:
+                confirmed = recording.auto_confirm_reservation()
+            
+            return Response({
+                'success': True,
+                'message': 'Прибытие проверено',
+                'recording_id': recording.id,
+                'detected_plate': detected_plate,
+                'expected_plate': reservation.license_plate,
+                'plate_matched': recording.plate_matched,
+                'confidence': confidence,
+                'reservation_confirmed': confirmed,
+                'video_path': recording.video_path
+            })
+            
+        except Exception as e:
+            import traceback
+            print(f"❌ Verify arrival error: {e}\n{traceback.format_exc()}")
+            
+            recording = CameraRecording.objects.create(
+                camera=camera,
+                reservation=reservation,
+                video_path='',
+                status='failed',
+                duration_seconds=0
+            )
+            
+            return Response({'error': f'Ошибка проверки: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def recordings(self, request):
+        """Получить все записи с камер"""
+        reservation_id = request.query_params.get('reservation_id')
+        
+        queryset = CameraRecording.objects.all().select_related('camera', 'reservation')
+        
+        if reservation_id:
+            queryset = queryset.filter(reservation_id=reservation_id)
+        
+        if request.user.is_authenticated and not request.user.is_staff:
+            queryset = queryset.filter(
+                Q(reservation__user=request.user) |
+                Q(reservation__guest_email=request.user.email)
+            )
+        
+        queryset = queryset.order_by('-recorded_at')
+        
+        serializer = CameraRecordingSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class CameraRecordingViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet для записей с камер
+    """
+    queryset = CameraRecording.objects.all().select_related('camera', 'reservation')
+    serializer_class = CameraRecordingSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = CameraRecording.objects.all().select_related('camera', 'reservation')
+        
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(
+                Q(reservation__user=self.request.user) |
+                Q(reservation__guest_email=self.request.user.email)
+            )
+        
+        return queryset

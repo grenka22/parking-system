@@ -13,11 +13,10 @@ import {
   Card,
   CardContent,
   Chip,
-  Rating,
 } from '@mui/material';
+import { Star, AutoAwesome, Event, AccessTime } from '@mui/icons-material';
 import { slotsAPI, reservationsAPI } from '../services/api';
 import CarPlates from '../components/CarPlates';
-import { Star, SwapHoriz, AutoAwesome } from '@mui/icons-material';
 
 const Booking = () => {
   const { slotId } = useParams();
@@ -38,8 +37,6 @@ const Booking = () => {
   });
   
   const [licensePlate, setLicensePlate] = useState('');
-  
-  // Состояние для рекомендаций
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [recommendations, setRecommendations] = useState([]);
   const [recommendLoading, setRecommendLoading] = useState(false);
@@ -71,13 +68,9 @@ const Booking = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Получение рекомендаций
   const handleGetRecommendations = async () => {
     if (!formData.start_time || !formData.end_time) {
       setError('Сначала укажите время бронирования');
@@ -109,14 +102,11 @@ const Booking = () => {
     }
   };
 
-  // Выбор рекомендованного места
   const handleSelectRecommendedSlot = (recommendedSlotId) => {
     if (recommendedSlotId === parseInt(slotId)) {
       setShowRecommendations(false);
       return;
     }
-    
-    // Перенаправляем на бронирование выбранного места
     navigate(`/book/${recommendedSlotId}`);
   };
 
@@ -136,13 +126,11 @@ const Booking = () => {
       const token = localStorage.getItem('access_token');
       const isGuestBooking = !token;
 
-      // Проверка номера машины
       const plateClean = licensePlate ? licensePlate.replace(/[\s-]/g, '') : '';
       if (!licensePlate || plateClean.length < 6) {
         throw new Error('Введите корректный номер автомобиля');
       }
 
-      // Проверка времени
       if (!formData.start_time || !formData.end_time) {
         throw new Error('Укажите время начала и окончания');
       }
@@ -186,8 +174,7 @@ const Booking = () => {
       }
 
       const response = await reservationsAPI.quickBook(bookingData);
-      
-      setSuccess(`✅ Бронирование успешно! Код: ${response.data.booking_code}`);
+      setSuccess(` Бронирование успешно! Код: ${response.data.booking_code}`);
       
       setTimeout(() => {
         navigate('/dashboard');
@@ -214,11 +201,7 @@ const Booking = () => {
     return (
       <Container maxWidth="md" sx={{ mt: 8 }}>
         <Alert severity="error">Место не найдено</Alert>
-        <Button 
-          variant="outlined" 
-          onClick={() => navigate('/dashboard')} 
-          sx={{ mt: 2 }}
-        >
+        <Button variant="outlined" onClick={() => navigate('/dashboard')} sx={{ mt: 2 }}>
           Назад
         </Button>
       </Container>
@@ -230,10 +213,9 @@ const Booking = () => {
       <Box sx={{ marginTop: 8, marginBottom: 4 }}>
         <Paper elevation={3} sx={{ p: 4 }}>
           <Typography component="h1" variant="h5" gutterBottom>
-            🅿️ Бронирование места
+             Бронирование места
           </Typography>
           
-          {/* Информация о месте */}
           <Card variant="outlined" sx={{ mb: 3, bgcolor: '#f5f5f5' }}>
             <CardContent>
               <Grid container spacing={2} alignItems="center">
@@ -251,29 +233,24 @@ const Booking = () => {
                     color={slot.is_active ? 'success' : 'default'}
                   />
                   {slot.zone_type && (
-                    <Chip 
-                      label={slot.zone_type} 
-                      size="small" 
-                      sx={{ ml: 1 }}
-                    />
+                    <Chip label={slot.zone_type} size="small" sx={{ ml: 1 }} />
                   )}
                 </Grid>
               </Grid>
             </CardContent>
           </Card>
 
-          {/* 🎯 БЛОК УМНОЙ РЕКОМЕНДАЦИИ */}
           <Alert severity="info" sx={{ mb: 3 }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <AutoAwesome sx={{ color: '#1976d2' }} />
                 <Typography variant="body2" fontWeight="bold">
-                  🤖 Умный подбор места
+                   Умный подбор места
                 </Typography>
               </Box>
               
               <Typography variant="body2" color="textSecondary">
-                Не уверены в выборе? Наш алгоритм подберет лучшее место на основе вашего времени!
+                Не уверены в выборе? Наш алгоритм подберет лучшее место!
               </Typography>
               
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
@@ -298,7 +275,6 @@ const Booking = () => {
                 )}
               </Box>
 
-              {/* Список рекомендаций */}
               {showRecommendations && recommendations.length > 0 && (
                 <Box sx={{ mt: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
@@ -331,15 +307,11 @@ const Booking = () => {
                             </Typography>
                           </Grid>
                           <Grid item xs={4} sm={3}>
-                            <Chip 
-                              label={rec.zone_name} 
-                              size="small" 
-                              variant="outlined"
-                            />
+                            <Chip label={rec.zone_name} size="small" variant="outlined" />
                           </Grid>
                           <Grid item xs={3} sm={3}>
                             <Typography variant="caption" color="textSecondary">
-                              Загруженность: {rec.zone_load_percent}%
+                              {rec.zone_load_percent}%
                             </Typography>
                           </Grid>
                           <Grid item xs={2} sm={4}>
@@ -349,7 +321,7 @@ const Booking = () => {
                           </Grid>
                         </Grid>
                         <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
-                          💡 {rec.reason_text}
+                            {rec.reason_text}
                         </Typography>
                       </CardContent>
                     </Card>
@@ -372,48 +344,76 @@ const Booking = () => {
           )}
 
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
-            {/* Время бронирования */}
-            <Typography variant="h6" gutterBottom>
-              📅 Время бронирования
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Event /> Время бронирования
             </Typography>
             
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
+                <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>Время начала *</Typography>
                 <TextField
-                  margin="normal"
                   required
                   fullWidth
-                  label="Время начала *"
+                  
                   type="datetime-local"
                   name="start_time"
                   value={formData.start_time}
                   onChange={handleChange}
-                  InputLabelProps={{ shrink: true }}
+                  InputLabelProps={{ 
+                    shrink: true,
+                    sx: {
+                      backgroundColor: 'white',
+                      px: 0.5,
+                      fontSize: '12px',
+                    }
+                  }}
+                  InputProps={{
+                    sx: {
+                      fontSize: '14px',
+                      minHeight: '56px',
+                    }
+                  }}
+                  variant="outlined"
+                  size="medium"
                 />
               </Grid>
               
               <Grid item xs={12} sm={6}>
+                <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>Время окончания *</Typography>
                 <TextField
-                  margin="normal"
                   required
                   fullWidth
-                  label="Время окончания *"
+                  
                   type="datetime-local"
                   name="end_time"
                   value={formData.end_time}
                   onChange={handleChange}
-                  InputLabelProps={{ shrink: true }}
+                  InputLabelProps={{ 
+                    shrink: true,
+                    sx: {
+                      backgroundColor: 'white',
+                      px: 0.5,
+                      fontSize: '12px',
+                    }
+                  }}
+                  InputProps={{
+                    sx: {
+                      fontSize: '14px',
+                      minHeight: '56px',
+                    }
+                  }}
+                  variant="outlined"
+                  size="medium"
                 />
               </Grid>
             </Grid>
 
             <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
-              ⏱️ Максимальное время бронирования — 3 часа
+               Максимальное время бронирования — 3 часа
             </Alert>
 
-            {/* Номер автомобиля */}
             <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-              🚗 Информация об автомобиле
+               Информация об автомобиле
             </Typography>
             
             <CarPlates
@@ -423,53 +423,55 @@ const Booking = () => {
               helperText="Введите номер автомобиля для бронирования"
             />
 
-            {/* Поля для гостей */}
             {!localStorage.getItem('access_token') && (
               <>
                 <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-                  👤 Контактная информация
+                   Контактная информация
                 </Typography>
                 
                 <TextField
-                  margin="normal"
                   required
                   fullWidth
-                  label="Имя *"
+                  label="Имя"
                   name="user_name"
                   value={formData.user_name}
                   onChange={handleChange}
+                  variant="outlined"
+                  size="medium"
+                  sx={{ mb: 2 }}
                 />
 
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      margin="normal"
                       required
                       fullWidth
-                      label="Телефон *"
+                      label="Телефон"
                       name="user_phone"
                       value={formData.user_phone}
                       onChange={handleChange}
+                      variant="outlined"
+                      size="medium"
                     />
                   </Grid>
                   
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      margin="normal"
                       required
                       fullWidth
-                      label="Email *"
+                      label="Email"
                       name="user_email"
                       type="email"
                       value={formData.user_email}
                       onChange={handleChange}
+                      variant="outlined"
+                      size="medium"
                     />
                   </Grid>
                 </Grid>
               </>
             )}
 
-            {/* Кнопки */}
             <Box sx={{ display: 'flex', gap: 2, mt: 4 }}>
               <Button
                 type="submit"
@@ -491,9 +493,8 @@ const Booking = () => {
               </Button>
             </Box>
 
-            {/* Информация о лимите */}
             <Alert severity="warning" sx={{ mt: 3 }}>
-              ⚠️ Один пользователь может иметь максимум 3 активных бронирования
+               Один пользователь может иметь максимум 3 активных бронирования
             </Alert>
           </Box>
         </Paper>

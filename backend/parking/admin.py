@@ -1,5 +1,7 @@
 from django.contrib import admin
 from .models import Zone, ParkingSlot, Reservation, TheftReport
+from django.contrib import admin
+from .models import Camera, CameraRecording
 
 @admin.register(Zone)
 class ZoneAdmin(admin.ModelAdmin):
@@ -41,3 +43,51 @@ class TheftReportAdmin(admin.ModelAdmin):
     list_display = ['id', 'reservation', 'user_name', 'status', 'reported_at', 'resolved_at']
     list_filter = ['status', 'reported_at']
     search_fields = ['user_name', 'user_phone', 'description']
+
+from .models import Camera, CameraRecording
+from django.contrib import admin
+
+@admin.register(Camera)
+class CameraAdmin(admin.ModelAdmin):
+    list_display = ['name', 'slot', 'is_active', 'is_recording', 'location', 'created_at']
+    list_filter = ['is_active', 'is_recording', 'slot__zone']
+    search_fields = ['name', 'location', 'slot__number']
+    readonly_fields = ['created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('name', 'slot', 'location')
+        }),
+        ('Настройки', {
+            'fields': ('rtsp_url', 'is_active', 'is_recording')
+        }),
+        ('Системная информация', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(CameraRecording)
+class CameraRecordingAdmin(admin.ModelAdmin):
+    list_display = ['camera', 'reservation', 'detected_plate', 'expected_plate', 
+                    'plate_matched', 'confidence_score', 'status', 'recorded_at']
+    list_filter = ['status', 'plate_matched', 'camera', 'recorded_at']
+    search_fields = ['detected_plate', 'expected_plate', 'reservation__booking_code']
+    readonly_fields = ['recorded_at', 'processed_at', 'video_path', 'thumbnail_path']
+    
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('camera', 'reservation', 'status')
+        }),
+        ('Распознавание номера', {
+            'fields': ('detected_plate', 'expected_plate', 'plate_matched', 'confidence_score')
+        }),
+        ('Файлы', {
+            'fields': ('video_path', 'thumbnail_path', 'duration_seconds')
+        }),
+        ('Временные метки', {
+            'fields': ('recorded_at', 'processed_at'),
+            'classes': ('collapse',)
+        }),
+    )

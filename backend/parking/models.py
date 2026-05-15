@@ -98,3 +98,126 @@ class TheftReport(models.Model):
     status = models.CharField(max_length=20, default='pending')
     reported_at = models.DateTimeField(auto_now_add=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
+
+class Camera(models.Model):
+    """
+    Камера наблюдения для парковочного места
+    """
+    slot = models.OneToOneField(
+        ParkingSlot,
+        on_delete=models.CASCADE,
+        related_name='camera',
+        null=True,
+        blank=True,
+        verbose_name='Парковочное место'
+    )
+    name = models.CharField(max_length=100, verbose_name='Название камеры')
+    rtsp_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        verbose_name='RTSP URL камеры'
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Активна')
+    is_recording = models.BooleanField(default=False, verbose_name='Идёт запись')
+    location = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name='Расположение'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Камера'
+        verbose_name_plural = 'Камеры'
+
+    def __str__(self):
+        return f'{self.name} (Место {self.slot.number if self.slot else "N/A"})'
+
+
+class CameraRecording(models.Model):
+    """
+    Запись с камеры (видео + распознанный номер)
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Ожидает обработки'),
+        ('processing', 'Обработка'),
+        ('completed', 'Завершено'),
+        ('failed', 'Ошибка'),
+    ]
+
+    camera = models.ForeignKey(
+        Camera,
+        on_delete=models.CASCADE,
+        related_name='recordings',
+        verbose_name='Камера'
+    )
+    reservation = models.ForeignKey(
+        Reservation,
+        on_delete=models.CASCADE,
+        related_name='camera_recordings',
+        null=True,
+        blank=True,
+        verbose_name='Бронирование'
+    )
+    video_path = models.CharField(
+        max_length=500,
+        verbose_name='Путь к видеофайлу'
+    )
+    thumbnail_path = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name='Путь к превью'
+    )
+    detected_plate = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name='Распознанный номер'
+    )
+    expected_plate = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name='Ожидаемый номер (из брони)'
+    )
+    plate_matched = models.BooleanField(
+        default=False,
+        verbose_name='Номер совпал'
+    )
+    confidence_score = models.FloatField(
+        default=0.0,
+        verbose_name='Точность распознавания (%)'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        verbose_name='Статус'
+    )
+    duration_seconds = models.IntegerField(
+        default=0,
+        verbose_name='Длительность (сек)'
+    )
+    recorded_at = models.DateTimeField(auto_now_add=True, verbose_name='Время записи')
+    processed_at = models.DateTimeField(null=True, blank=True, verbose_name='Время обработки')
+
+    class Meta:
+        verbose_name = 'Запись с камеры'
+        verbose_name_plural = 'Записи с камер'
+        ordering = ['-recorded_at']
+
+    def __str__(self):
+        return f'{self.camera.name} - {self.recorded_at.strftime("%Y-%m-%d %H:%M")}'
+
+    def auto_confirm_reservation(self):
+        """
+        Если номер совпал - автоматически подтвердить бронь
+        """
+        if self.plate_matched and self.reservation and self.reservation.status == 'pending':
+            self.reservation.status = 'active'
+            self.reservation.confirmed_at = timezone.now()
+            self.reservation.save()
+            return True
+        return False

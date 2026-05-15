@@ -56,7 +56,7 @@ const Recommendation = () => {
   return (
     <Container maxWidth="md" sx={{ mt: 8, mb: 4 }}>
       <Typography variant="h4" gutterBottom>
-        🎯 Умный подбор места
+         Умный подбор места
       </Typography>
 
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -66,6 +66,13 @@ const Recommendation = () => {
               <TextField
                 fullWidth
                 label="Время начала *"
+                sx={{
+                  '& .MuiInputBase-input': {
+                    padding: '12px 14px',
+                    fontSize: '14px',
+                  },
+                  minWidth: 200,  
+                  }}       
                 type="datetime-local"
                 name="start_time"
                 value={formData.start_time}
@@ -138,9 +145,9 @@ const Recommendation = () => {
                 <Grid container spacing={2} alignItems="center">
                   <Grid item xs={12} sm={3}>
                     <Typography variant="h6">
-                      {rec.rank === 1 && '🥇 '}
-                      {rec.rank === 2 && '🥈 '}
-                      {rec.rank === 3 && '🥉 '}
+                      {rec.rank === 1 }
+                      {rec.rank === 2 }
+                      {rec.rank === 3 }
                       Место {rec.slot_number}
                     </Typography>
                     <Typography color="textSecondary">

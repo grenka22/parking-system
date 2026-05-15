@@ -107,3 +107,10 @@ SIMPLE_JWT = {
     'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Папка для записей
+CAMERA_RECORDINGS_DIR = os.path.join(MEDIA_ROOT, 'recordings')
