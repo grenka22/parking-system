@@ -3,7 +3,7 @@ import axios from 'axios';
 const API_URL = 'http://130.193.53.192:8000';
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_URL,  // ← Исправлено!
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -27,7 +27,7 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('refresh_token');
         if (!refreshToken) throw new Error('No refresh token');
         
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh/`, {
+        const response = await axios.post(`${API_URL}/auth/refresh/`, {  // ← Исправлено!
           refresh: refreshToken,
         });
 
