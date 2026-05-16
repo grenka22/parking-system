@@ -50,7 +50,7 @@ const TheftReport = () => {
         throw new Error('Заполните имя и телефон');
       }
       await theftAPI.create(formData);
-      setSuccess('✅ Заявление успешно отправлено!');
+      setSuccess(' Заявление успешно отправлено!');
       setStep(2);
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Ошибка при отправке');
@@ -65,7 +65,7 @@ const TheftReport = () => {
     <Container maxWidth="md" sx={{ mt: 8, mb: 4 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
         <Typography variant="h4" gutterBottom align="center" color="error">
-          🚨 Заявление об угоне
+           Заявление об угоне
         </Typography>
 
         <Stepper activeStep={step} sx={{ mt: 3, mb: 4 }}>
@@ -85,7 +85,7 @@ const TheftReport = () => {
                 Если ваш автомобиль был угнан с парковки, заполните заявление.
               </Typography>
               <Alert severity="warning" sx={{ mt: 2 }}>
-                ⚠️ Ложное заявление — уголовное преступление!
+                 Ложное заявление — уголовное преступление!
               </Alert>
               <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
                 <Button variant="contained" color="error" size="large" 
