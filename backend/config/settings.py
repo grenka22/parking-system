@@ -8,7 +8,7 @@ SECRET_KEY = 'django-insecure-!^w#lwj@a3hw#=v_r4fv#ta6v+3hc=fo_a0qh-gyl496(*f3w(
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['*', '37.230.168.175', 'localhost']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -85,7 +85,10 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = CORS_ALLOWED_ORIGINS = [
+    "http://37.230.168.175:3000",
+    "http://localhost:3000",
+]
 CORS_ALLOW_CREDENTIALS = True
 
 # REST Framework + JWT
