@@ -1,10 +1,7 @@
-# backend/parking/urls.py
 from django.urls import path
-
-# Если роутер уже подключён в config/urls.py — этот файл может быть пустым
-# или содержать только специфичные эндпоинты
+from . import auth_views
 
 urlpatterns = [
-    # Пример дополнительного эндпоинта (если нужен):
-    # path('slots/<int:pk>/check/', SlotCheckView.as_view(), name='slot-check'),
+    path('auth/login/', auth_views.login_view, name='login'),
+    path('auth/register/', auth_views.register_view, name='register'),
 ]

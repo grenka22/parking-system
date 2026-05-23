@@ -1,14 +1,16 @@
 import axios from 'axios';
 
-const API_URL = 'http://130.193.53.192:8000';
+// ВАЖНО: добавлен /api в конец, чтобы пути совпадали с backend
+const API_URL = 'http://130.193.53.192:8000/api';
 
 const api = axios.create({
-  baseURL: API_URL,  // ← Исправлено!
+  baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
+  // SimpleJWT возвращает поле 'access', а не 'access_token'
+  const token = localStorage.getItem('access');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -24,21 +26,21 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       
       try {
-        const refreshToken = localStorage.getItem('refresh_token');
+        const refreshToken = localStorage.getItem('refresh');
         if (!refreshToken) throw new Error('No refresh token');
         
-        const response = await axios.post(`${API_URL}/auth/refresh/`, {  // ← Исправлено!
+        const response = await axios.post(`${API_URL}/auth/refresh/`, {
           refresh: refreshToken,
         });
 
         const { access } = response.data;
-        localStorage.setItem('access_token', access);
+        localStorage.setItem('access', access);
         
         originalRequest.headers.Authorization = `Bearer ${access}`;
         return api(originalRequest);
       } catch (refreshError) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('access');
+        localStorage.removeItem('refresh');
         localStorage.removeItem('user');
         window.location.href = '/login';
         return Promise.reject(refreshError);
@@ -57,21 +59,19 @@ export const authAPI = {
   getProfile: () => 
     api.get('/auth/profile/'),
   logout: () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('access');
+    localStorage.removeItem('refresh');
     localStorage.removeItem('user');
   },
 };
 
-export const zonesAPI = {
-  getAll: () => api.get('/zones/'),
-};
+export const zonesAPI = { getAll: () => api.get('/zones/') };
 
 export const slotsAPI = {
   getAll: () => api.get('/slots/'),
   getAvailable: () => api.get('/slots/available/'),
   getById: (id) => api.get(`/slots/${id}/`),
-  recommend: (data) => api.post('/slots/recommend/', data),  // ← ДОБАВЬ ЭТО!
+  recommend: (data) => api.post('/slots/recommend/', data),
 };
 
 export const reservationsAPI = {
