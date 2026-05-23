@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // ВАЖНО: добавлен /api в конец, чтобы пути совпадали с backend
-const API_URL = 'http://130.193.53.192:8000/api';
+const API_URL = 'http://111.88.159.139:8000/api';
 
 const api = axios.create({
   baseURL: API_URL,
