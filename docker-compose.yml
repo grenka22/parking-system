@@ -52,7 +52,7 @@ services:
       - backend
     environment:
       CHOKIDAR_USEPOLLING: "true"
-  REACT_APP_API_URL: http://37.230.169.211:8000/api
-  
+      REACT_APP_API_URL: http://37.230.169.211:8000/api
+
 volumes:
   mariadb:
