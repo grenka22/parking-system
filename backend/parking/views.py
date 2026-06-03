@@ -449,7 +449,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
                     start_time=start_aware,
                     end_time=end_aware,
                     status='pending',
-                    total_price=total_price
+
                 )
             
             return Response({
