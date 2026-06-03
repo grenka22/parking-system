@@ -37,9 +37,6 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        """
-        Оптимизируем запросы с фильтрацией
-        """
         queryset = ParkingSlot.objects.all().select_related('zone')
         zone = self.request.query_params.get('zone', None)
         is_active = self.request.query_params.get('is_active', None)
@@ -53,9 +50,6 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def available(self, request):
-        """
-        Получить все свободные места
-        """
         slots = ParkingSlot.objects.filter(
             is_active=True,
             is_occupied=False
@@ -66,14 +60,10 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def least_loaded(self, request):
-        """
-        Получить места в наименее загруженной зоне
-        """
         zones = Zone.objects.all()
         if not zones.exists():
             return Response([], status=status.HTTP_200_OK)
         
-        # Находим зону с наименьшей загруженностью
         zone_with_min_load = min(zones, key=lambda z: z.get_current_load())
         
         slots = ParkingSlot.objects.filter(
@@ -87,16 +77,6 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def recommend(self, request):
-        """
-        Умная рекомендация лучшего места на основе времени бронирования
-        
-        Критерии (без учёта цены):
-        1. Доступность на всё время бронирования
-        2. Приоритет зоны (чем выше — тем лучше)
-        3. Загруженность зоны (менее загруженные предпочтительнее)
-        4. Расположение места (ближе к входу/выходу)
-        5. Тип места (не инвалидное по умолчанию)
-        """
         try:
             start_time_str = request.data.get('start_time')
             end_time_str = request.data.get('end_time')
@@ -108,7 +88,6 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Парсинг дат
             from datetime import datetime
             from django.utils import timezone as django_timezone
             from datetime import timezone as dt_timezone
@@ -119,7 +98,6 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
             start_aware = django_timezone.make_aware(start_time, dt_timezone.utc)
             end_aware = django_timezone.make_aware(end_time, dt_timezone.utc)
             
-            # Получаем все активные места с зонами
             slots = ParkingSlot.objects.filter(
                 is_active=True,
                 zone__isnull=False
@@ -128,23 +106,19 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
             if zone_type:
                 slots = slots.filter(zone__zone_type=zone_type)
             
-            # Фильтруем доступные места и рассчитываем score
             available_slots = []
             
             for slot in slots:
-                # Проверка доступности на выбранное время
                 if slot.is_available_for_booking(start_aware, end_aware):
                     zone = slot.zone
                     score = 0
                     reasons = []
                     
-                    # 1. Приоритет зоны (макс +30 баллов)
                     zone_priority = zone.priority if zone.priority else 0
                     score += zone_priority * 3
                     if zone_priority >= 8:
                         reasons.append("высокий приоритет зоны")
                     
-                    # 2. Загруженность зоны (макс +40 баллов)
                     current_load = zone.get_current_load()
                     capacity = zone.capacity if zone.capacity else 1
                     availability = 1 - (current_load / capacity)
@@ -156,21 +130,17 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
                     elif load_percent > 70:
                         reasons.append("зона загружена")
                     
-                    # 3. Расположение места (макс +20 баллов)
                     if slot.position_x is not None and slot.position_y is not None:
-                        # Ближе к началу координат = ближе к входу = лучше
                         distance_score = max(0, 100 - (slot.position_x + slot.position_y))
                         score += distance_score / 5
                         reasons.append("удобное расположение")
                     
-                    # 4. Не инвалидное место (по умолчанию) (макс +10 баллов)
                     if not slot.is_disabled:
                         score += 10
                         reasons.append("стандартное место")
                     else:
                         reasons.append("место для инвалидов")
                     
-                    # 5. Бонус за тип зоны
                     if zone.zone_type == 'vip':
                         score += 15
                         reasons.append("VIP зона")
@@ -187,19 +157,14 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
                         'reasons': reasons
                     })
             
-            # Сортируем по score (по убыванию — лучшие первые)
             available_slots.sort(key=lambda x: x['score'], reverse=True)
-            
-            # Берем топ-3 рекомендации
             top_recommendations = available_slots[:3]
             
-            # Формируем ответ
             recommendations = []
             for i, item in enumerate(top_recommendations, 1):
                 slot = item['slot']
                 zone = item['zone']
                 
-                # Определяем ранг и иконку
                 rank_icon = '🥇' if i == 1 else '🥈' if i == 2 else '🥉' if i == 3 else ''
                 rank_label = 'Лучший выбор' if i == 1 else 'Хорошая альтернатива' if i == 2 else 'Доступный вариант'
                 
@@ -249,9 +214,6 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def check_availability(self, request, pk=None):
-        """
-        Проверить доступность конкретного места на указанное время
-        """
         slot = self.get_object()
         start_time = request.data.get('start_time')
         end_time = request.data.get('end_time')
@@ -295,20 +257,20 @@ class ParkingSlotViewSet(viewsets.ModelViewSet):
 
 
 class ReservationViewSet(viewsets.ModelViewSet):
-    """ViewSet для бронирований"""
+    """ViewSet для бронирований (ТОЛЬКО ДЛЯ АВТОРИЗОВАННЫХ ПОЛЬЗОВАТЕЛЕЙ)"""
     queryset = Reservation.objects.all().select_related('slot', 'slot__zone', 'user').order_by('-created_at')
     serializer_class = ReservationSerializer
+    # Требует авторизации для всех действий
     permission_classes = [permissions.IsAuthenticated]
     
-    def get_permissions(self):
-        if self.action in ['quick_book']:
-            return [permissions.AllowAny()]
-        elif self.action in ['my_reservations', 'active']:
-            return [permissions.IsAuthenticated()]
-        return [permissions.IsAuthenticated()]
-    
     def get_queryset(self):
-        queryset = Reservation.objects.all().select_related('slot', 'slot__zone', 'user')
+        # Если это обычный список, можно возвращать все или фильтровать по статусу
+        # Но для безопасности лучше возвращать только свои, если это не админ
+        if self.request.user.is_staff:
+            queryset = Reservation.objects.all().select_related('slot', 'slot__zone', 'user')
+        else:
+            queryset = Reservation.objects.filter(user=self.request.user).select_related('slot', 'slot__zone', 'user')
+            
         status_param = self.request.query_params.get('status', None)
         if status_param:
             queryset = queryset.filter(status=status_param)
@@ -316,10 +278,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def my_reservations(self, request):
-        """Получить мои бронирования"""
+        """Получить мои бронирования (строго по пользователю)"""
         user = request.user
         reservations = Reservation.objects.filter(
-            Q(user=user) | Q(guest_email=user.email)
+            user=user  # Убрал Q(guest_email...) - теперь только для залогиненных
         ).select_related('slot', 'slot__zone').order_by('-created_at')
         serializer = self.get_serializer(reservations, many=True)
         return Response(serializer.data)
@@ -329,7 +291,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         """Получить активные бронирования"""
         user = request.user
         reservations = Reservation.objects.filter(
-            Q(user=user) | Q(guest_email=user.email),
+            user=user,  # Убрал Q(guest_email...)
             status__in=['pending', 'active']
         ).select_related('slot', 'slot__zone').order_by('start_time')
         serializer = self.get_serializer(reservations, many=True)
@@ -337,7 +299,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def quick_book(self, request):
-        """Быстрое бронирование места"""
+        """Быстрое бронирование места (только для авторизованных)"""
         try:
             slot_id = request.data.get('slot_id')
             start_time_str = request.data.get('start_time')
@@ -356,7 +318,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Парсинг дат (naive datetime)
             try:
                 start_time = datetime.fromisoformat(start_time_str.replace('Z', ''))
                 end_time = datetime.fromisoformat(end_time_str.replace('Z', ''))
@@ -366,7 +327,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Сравнение: делаем ОБА naive
             now_naive = timezone.now().replace(tzinfo=None)
             start_naive = start_time.replace(tzinfo=None) if start_time.tzinfo else start_time
             
@@ -376,7 +336,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Проверка длительности
             duration = end_time - start_time
             if duration.total_seconds() > 3 * 3600:
                 return Response(
@@ -389,7 +348,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Получаем место
             slot = ParkingSlot.objects.filter(id=slot_id, is_active=True).first()
             if not slot:
                 return Response(
@@ -397,7 +355,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Проверка доступности (делаем aware для модели)
             start_aware = timezone.make_aware(start_time, dt_timezone.utc)
             end_aware = timezone.make_aware(end_time, dt_timezone.utc)
             
@@ -407,50 +364,23 @@ class ReservationViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Лимит 3 брони
-            if request.user.is_authenticated:
-                if Reservation.objects.filter(user=request.user, status__in=['pending', 'active']).count() >= 3:
-                    return Response(
-                        {'error': 'Максимум 3 активных бронирования'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-            
-            
-            
-            # Создаём бронирование
-            if request.user.is_authenticated and not request.data.get('is_guest', False):
-                reservation = Reservation.objects.create(
-                    slot=slot,
-                    user=request.user,
-                    is_guest=False,
-                    license_plate=license_plate,
-                    start_time=start_aware,
-                    end_time=end_aware,
-                    status='pending',
+            # Проверка лимита бронирований
+            if Reservation.objects.filter(user=request.user, status__in=['pending', 'active']).count() >= 3:
+                return Response(
+                    {'error': 'Максимум 3 активных бронирования'},
+                    status=status.HTTP_400_BAD_REQUEST
                 )
-            else:
-                guest_name = request.data.get('guest_name', '').strip()
-                guest_phone = request.data.get('guest_phone', '').strip()
-                guest_email = request.data.get('guest_email', '').strip()
-                
-                if not all([guest_name, guest_phone, guest_email]):
-                    return Response(
-                        {'error': 'Гость: укажите name, phone, email'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                
-                reservation = Reservation.objects.create(
-                    slot=slot,
-                    is_guest=True,
-                    guest_name=guest_name,
-                    guest_phone=guest_phone,
-                    guest_email=guest_email,
-                    license_plate=license_plate,
-                    start_time=start_aware,
-                    end_time=end_aware,
-                    status='pending',
-
-                )
+            
+            # СОЗДАЕМ БРОНИРОВАНИЕ СТРОГО ДЛЯ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
+            reservation = Reservation.objects.create(
+                slot=slot,
+                user=request.user,  # Привязываем к залогиненному юзеру
+                is_guest=False,     # Гостевой режим отключен
+                license_plate=license_plate,
+                start_time=start_aware,
+                end_time=end_aware,
+                status='pending',
+            )
             
             return Response({
                 'success': True,
@@ -468,7 +398,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def confirm_arrival(self, request, pk=None):
-        """Подтвердить прибытие"""
         reservation = self.get_object()
         
         if reservation.status != 'pending':
@@ -489,7 +418,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
-        """Отменить бронирование"""
         reservation = self.get_object()
         
         if reservation.status not in ['pending', 'active']:
@@ -518,7 +446,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def statistics(self, request):
-        """Статистика бронирований (для админов)"""
         if not request.user.is_staff:
             return Response(
                 {'error': 'Только для администраторов'},
@@ -538,24 +465,17 @@ class TheftReportViewSet(viewsets.ModelViewSet):
     """ViewSet для заявлений об угоне"""
     queryset = TheftReport.objects.all().select_related('reservation').order_by('-reported_at')
     serializer_class = TheftReportSerializer
-    permission_classes = [permissions.AllowAny]
-    
-    def get_permissions(self):
-        if self.action in ['create', 'my_reports']:
-            return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated()]
+    permission_classes = [permissions.IsAuthenticated] # Требует авторизацию
     
     def create(self, request, *args, **kwargs):
         """Создание заявления об угоне"""
         try:
             reservation_id = request.data.get('reservation')
-            user_name = request.data.get('user_name', '').strip()
-            user_phone = request.data.get('user_phone', '').strip()
             description = request.data.get('description', '').strip()
             
-            if not all([user_name, user_phone, description]):
+            if not description:
                 return Response(
-                    {'error': 'Заполните все обязательные поля'},
+                    {'error': 'Заполните описание'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
@@ -567,7 +487,8 @@ class TheftReportViewSet(viewsets.ModelViewSet):
             
             reservation = None
             if reservation_id:
-                reservation = Reservation.objects.filter(id=reservation_id).first()
+                # Проверяем, что бронирование принадлежит текущему пользователю
+                reservation = Reservation.objects.filter(id=reservation_id, user=request.user).first()
                 if not reservation:
                     return Response(
                         {'error': 'Бронирование не найдено'},
@@ -576,8 +497,8 @@ class TheftReportViewSet(viewsets.ModelViewSet):
             
             report = TheftReport.objects.create(
                 reservation=reservation,
-                user_name=user_name,
-                user_phone=user_phone,
+                user_name=request.user.get_full_name() or request.user.username,
+                user_phone=request.user.phone if hasattr(request.user, 'phone') else '',
                 description=description,
                 status='pending'
             )
@@ -598,25 +519,14 @@ class TheftReportViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def my_reports(self, request):
         """Мои заявления об угоне"""
-        if request.user.is_authenticated:
-            reports = TheftReport.objects.filter(
-                Q(reservation__user=request.user) |
-                Q(user_phone=request.query_params.get('phone', ''))
-            ).select_related('reservation').order_by('-reported_at')
-        else:
-            phone = request.query_params.get('phone', '')
-            if phone:
-                reports = TheftReport.objects.filter(user_phone=phone).order_by('-reported_at')
-            else:
-                reports = TheftReport.objects.none()
+        reports = TheftReport.objects.filter(
+            reservation__user=request.user
+        ).select_related('reservation').order_by('-reported_at')
         
         serializer = self.get_serializer(reports, many=True)
         return Response(serializer.data)
     
 class CameraViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet для управления камерами
-    """
     queryset = Camera.objects.all().select_related('slot', 'slot__zone')
     serializer_class = CameraSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -628,7 +538,6 @@ class CameraViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def by_slot(self, request):
-        """Получить камеру для конкретного места"""
         slot_id = request.query_params.get('slot_id')
         if not slot_id:
             return Response({'error': 'Укажите slot_id'}, status=status.HTTP_400_BAD_REQUEST)
@@ -642,7 +551,6 @@ class CameraViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def start_recording(self, request, pk=None):
-        """Начать запись с камеры"""
         camera = self.get_object()
         if not camera.is_active:
             return Response({'error': 'Камера не активна'}, status=status.HTTP_400_BAD_REQUEST)
@@ -656,7 +564,6 @@ class CameraViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def stop_recording(self, request, pk=None):
-        """Остановить запись с камеры"""
         camera = self.get_object()
         camera.is_recording = False
         camera.save()
@@ -665,7 +572,6 @@ class CameraViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def verify_arrival(self, request):
-        """Проверить прибытие автомобиля через камеру"""
         serializer = CameraVerifySerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -690,7 +596,6 @@ class CameraViewSet(viewsets.ModelViewSet):
             
             os.makedirs(os.path.join(settings.MEDIA_ROOT, 'recordings'), exist_ok=True)
             
-            # Для демонстрации - имитация распознавания
             detected_plate = reservation.license_plate if reservation.license_plate else 'X000XX 00'
             confidence = 0.85
             
@@ -726,7 +631,7 @@ class CameraViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             import traceback
-            print(f"❌ Verify arrival error: {e}\n{traceback.format_exc()}")
+            print(f" Verify arrival error: {e}\n{traceback.format_exc()}")
             
             recording = CameraRecording.objects.create(
                 camera=camera,
@@ -740,7 +645,6 @@ class CameraViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def recordings(self, request):
-        """Получить все записи с камер"""
         reservation_id = request.query_params.get('reservation_id')
         
         queryset = CameraRecording.objects.all().select_related('camera', 'reservation')
@@ -749,10 +653,7 @@ class CameraViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(reservation_id=reservation_id)
         
         if request.user.is_authenticated and not request.user.is_staff:
-            queryset = queryset.filter(
-                Q(reservation__user=request.user) |
-                Q(reservation__guest_email=request.user.email)
-            )
+            queryset = queryset.filter(reservation__user=request.user)
         
         queryset = queryset.order_by('-recorded_at')
         
@@ -761,9 +662,6 @@ class CameraViewSet(viewsets.ModelViewSet):
 
 
 class CameraRecordingViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet для записей с камер
-    """
     queryset = CameraRecording.objects.all().select_related('camera', 'reservation')
     serializer_class = CameraRecordingSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -772,9 +670,6 @@ class CameraRecordingViewSet(viewsets.ModelViewSet):
         queryset = CameraRecording.objects.all().select_related('camera', 'reservation')
         
         if not self.request.user.is_staff:
-            queryset = queryset.filter(
-                Q(reservation__user=self.request.user) |
-                Q(reservation__guest_email=self.request.user.email)
-            )
+            queryset = queryset.filter(reservation__user=self.request.user)
         
         return queryset
